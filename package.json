@@ -5,6 +5,14 @@
   "license": "MIT",
   "type": "module",
   "description": "Countdown days for the DeepSeek Harness Web UI: birthdays, anniversaries, loan and credit-card due dates, with Chinese lunar calendar, recurrence and reminders.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Veagau/dsh-countdown-days.git"
+  },
+  "bugs": { "url": "https://github.com/Veagau/dsh-countdown-days/issues" },
+  "homepage": "https://github.com/Veagau/dsh-countdown-days#readme",
+  "keywords": ["deepseek-harness", "dsh", "plugin", "countdown", "lunar-calendar", "reminders"],
+  "scripts": { "check": "node scripts/check.mjs" },
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
