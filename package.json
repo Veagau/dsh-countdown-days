@@ -1,6 +1,6 @@
 {
   "name": "@local/dsh-countdown-days",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -12,7 +12,7 @@
   "bugs": { "url": "https://github.com/Veagau/dsh-countdown-days/issues" },
   "homepage": "https://github.com/Veagau/dsh-countdown-days#readme",
   "keywords": ["deepseek-harness", "dsh", "plugin", "countdown", "lunar-calendar", "reminders"],
-  "scripts": { "check": "node scripts/check.mjs" },
+  "scripts": { "check": "node scripts/check.mjs", "test": "node scripts/lunar-test.mjs && node scripts/storage-test.mjs && node scripts/settings-test.mjs" },
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",

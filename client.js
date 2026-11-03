@@ -143,6 +143,8 @@ window.__ModuleLoader__.load({
       'toast.imported': 'Imported {n} countdowns',
       'toast.cleared': 'All countdowns cleared',
       'toast.invalid': 'That file is not a valid countdown backup.',
+      'toast.storageLocked': 'Cannot save: stored data is invalid, unsupported, changed elsewhere, or unavailable. Your original data was preserved.',
+      'storage.readError': 'Could not read countdown data. The original data is preserved; saving and export are disabled.',
       'toast.notifyDenied': 'Notifications are blocked; in-app reminders will still appear.',
       'toast.test': 'Test reminder sent',
       'reminder.title': 'Countdown reminder',
@@ -270,6 +272,8 @@ window.__ModuleLoader__.load({
       'toast.imported': '已导入 {n} 条记录',
       'toast.cleared': '已清空全部记录',
       'toast.invalid': '备份文件格式不正确。',
+      'toast.storageLocked': '无法保存：存储数据损坏、不受支持、已被其他页面更改或不可用。原始数据已保留。',
+      'storage.readError': '无法读取倒数日数据，原始数据已保留；保存和导出已停用。',
       'toast.notifyDenied': '通知权限未开启，仍会显示站内提醒。',
       'toast.test': '测试提醒已发送',
       'reminder.title': '倒数日提醒',
@@ -479,17 +483,16 @@ window.__ModuleLoader__.load({
 
     const lunarFormatter = (function () {
       try {
-        return new Intl.DateTimeFormat('zh-CN-u-ca-chinese', {
+        const formatter = new Intl.DateTimeFormat('zh-CN-u-ca-chinese', {
           year: 'numeric',
           month: 'long',
           day: 'numeric',
         });
+        return formatter.resolvedOptions().calendar === 'chinese' ? formatter : null;
       } catch (err) {
         return null;
       }
     })();
-    const lunarSupported = !!lunarFormatter;
-
     const lunarPartsCache = new Map();
     const lunarToSolarCache = new Map();
     const leapMonthCache = new Map();
@@ -546,8 +549,16 @@ window.__ModuleLoader__.load({
       return result;
     }
 
+    // Some ICU builds accept the calendar but omit expected parts or leap-month markers.
+    const lunarProbe = lunarPartsOf(new Date(2024, 1, 10, 12));
+    const lunarLeapProbe = lunarPartsOf(new Date(2023, 2, 22, 12));
+    const lunarSupported = !!lunarProbe && lunarProbe.year === 2024 &&
+      lunarProbe.month === 1 && lunarProbe.day === 1 && !lunarProbe.leap &&
+      !!lunarLeapProbe && lunarLeapProbe.year === 2023 && lunarLeapProbe.month === 2 &&
+      lunarLeapProbe.day === 1 && lunarLeapProbe.leap;
+
     function lunarToSolar(year, month, day, leap) {
-      if (!lunarFormatter) return null;
+      if (!lunarSupported) return null;
       if (!(year >= 1900 && year <= 2100) || month < 1 || month > 12 || day < 1 || day > 30) return null;
       const key = year + '|' + month + '|' + day + '|' + (leap ? 1 : 0);
       const cached = lunarToSolarCache.get(key);
@@ -555,8 +566,7 @@ window.__ModuleLoader__.load({
       const start = new Date(year, 0, 1, 12);
       const end = new Date(year + 1, 2, 10, 12);
       let found = null;
-      for (let time = start.getTime(); time <= end.getTime(); time += MS_DAY) {
-        const date = new Date(time);
+      for (let date = start; date <= end; date = addDays(date, 1)) {
         const parts = lunarPartsOf(date);
         if (!parts) continue;
         if (parts.year > year) break;
@@ -578,13 +588,13 @@ window.__ModuleLoader__.load({
     }
 
     function lunarYearLeapMonth(year) {
-      if (!lunarFormatter) return 0;
+      if (!lunarSupported) return 0;
       if (leapMonthCache.has(year)) return leapMonthCache.get(year);
       let result = 0;
       const start = new Date(year, 0, 1, 12);
       const end = new Date(year + 1, 2, 10, 12);
-      for (let time = start.getTime(); time <= end.getTime(); time += MS_DAY) {
-        const parts = lunarPartsOf(new Date(time));
+      for (let date = start; date <= end; date = addDays(date, 1)) {
+        const parts = lunarPartsOf(date);
         if (!parts) continue;
         if (parts.year > year) break;
         if (parts.year === year && parts.leap) {
@@ -689,8 +699,10 @@ window.__ModuleLoader__.load({
 
     function storageAvailable() {
       try {
-        const probe = '__dsh_cd_probe__';
+        const probe = '__dsh_cd_probe__' + Date.now().toString(36) + Math.random().toString(36).slice(2);
+        if (window.localStorage.getItem(probe) !== null) return false;
         window.localStorage.setItem(probe, '1');
+        if (window.localStorage.getItem(probe) !== '1') return false;
         window.localStorage.removeItem(probe);
         return true;
       } catch (err) {
@@ -764,63 +776,133 @@ window.__ModuleLoader__.load({
       return event;
     }
 
-    function loadState() {
+    function decodeEvents(data) {
+      if (!Array.isArray(data)) {
+        if (!data || typeof data !== 'object' || !Array.isArray(data.events)) return null;
+        if (data.schema !== undefined && data.schema !== SCHEMA) return null;
+        if (data.version !== undefined && data.version !== STORE_VERSION && data.version !== 0) return null;
+        if (Object.keys(data).some(function (key) {
+          return ['schema', 'version', 'events', 'exportedAt'].indexOf(key) < 0;
+        })) return null;
+      }
+      const list = Array.isArray(data) ? data : data.events;
+      if (list.length > MAX_EVENTS) return null;
+      const events = [];
+      const ids = new Set();
+      for (const item of list) {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+        const event = sanitizeEvent(item);
+        if (!event) return null;
+        const date = event.dateType === 'lunar' ? event.lunar : event.solar;
+        if (!Number.isInteger(date.year) || !Number.isInteger(date.month) || !Number.isInteger(date.day)) return null;
+        if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(event.reminderTime)) return null;
+        // Legacy missing fields may receive defaults, but supplied data must not
+        // be dropped, truncated, coerced, or silently corrected.
+        for (const key of Object.keys(item)) {
+          if (!Object.prototype.hasOwnProperty.call(event, key)) return null;
+          if (key === 'solar' || key === 'lunar') {
+            const date = item[key];
+            if (!date || typeof date !== 'object' || Array.isArray(date)) return null;
+            for (const part of Object.keys(date)) {
+              if (!Object.prototype.hasOwnProperty.call(event[key], part) || date[part] !== event[key][part]) return null;
+            }
+          } else if (key === 'reminderDays') {
+            if (!Array.isArray(item[key]) || item[key].length !== event[key].length ||
+                item[key].some(function (value) { return event[key].indexOf(value) < 0; })) return null;
+          } else if (item[key] !== event[key]) return null;
+        }
+        if (ids.has(event.id)) return null;
+        ids.add(event.id);
+        events.push(event);
+      }
+      return events;
+    }
+
+    // Only a panel-owned snapshot authorizes writes; background reads are independent.
+    function loadState(snapshot) {
       const empty = { schema: SCHEMA, version: STORE_VERSION, events: [] };
       try {
         const raw = window.localStorage.getItem(STORAGE_KEY);
-        if (!raw) return empty;
-        const data = JSON.parse(raw);
-        const list = Array.isArray(data) ? data : data && Array.isArray(data.events) ? data.events : [];
-        const events = [];
-        list.slice(0, MAX_EVENTS).forEach(function (item) {
-          const event = sanitizeEvent(item);
-          if (event) events.push(event);
-        });
+        const events = raw === null ? [] : decodeEvents(JSON.parse(raw));
+        if (!events) throw new Error('Invalid countdown store');
+        if (snapshot) { snapshot.raw = raw; snapshot.locked = false; }
         return { schema: SCHEMA, version: STORE_VERSION, events: events };
       } catch (err) {
+        if (snapshot) snapshot.locked = true;
         return empty;
       }
     }
 
-    function saveState(state) {
+    function snapshotIsCurrent(snapshot) {
       try {
-        window.localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify({ schema: SCHEMA, version: STORE_VERSION, events: state.events }),
-        );
+        return !!snapshot && !snapshot.locked && window.localStorage.getItem(STORAGE_KEY) === snapshot.raw;
+      } catch (err) {
+        return false;
+      }
+    }
+
+    function saveState(state, snapshot) {
+      try {
+        if (!snapshotIsCurrent(snapshot) || !decodeEvents(state.events)) return false;
+        const raw = JSON.stringify({ schema: SCHEMA, version: STORE_VERSION, events: state.events });
+        window.localStorage.setItem(STORAGE_KEY, raw);
+        snapshot.raw = raw;
         return true;
       } catch (err) {
         return false;
       }
     }
 
+    let settingsSnapshot;
+    let settingsLocked = true;
+
+    function decodeSettings(value) {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+      if (Object.keys(value).some(function (key) {
+        return ['notifications', 'defaultReminderTime', 'fired'].indexOf(key) < 0;
+      })) return null;
+      if ('notifications' in value && typeof value.notifications !== 'boolean') return null;
+      if ('defaultReminderTime' in value && (typeof value.defaultReminderTime !== 'string' ||
+          !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value.defaultReminderTime))) return null;
+      if ('fired' in value) {
+        if (!value.fired || typeof value.fired !== 'object' || Array.isArray(value.fired)) return null;
+        if (Object.keys(value.fired).some(function (key) {
+          return typeof value.fired[key] !== 'number' || !Number.isFinite(value.fired[key]) || value.fired[key] <= 0;
+        })) return null;
+      }
+      return Object.assign({}, DEFAULT_SETTINGS, value);
+    }
+
     function loadSettings() {
       try {
-        const parsed = JSON.parse(window.localStorage.getItem(SETTINGS_KEY) || 'null');
-        const merged = Object.assign({}, DEFAULT_SETTINGS);
-        if (parsed && typeof parsed === 'object') {
-          merged.notifications = parsed.notifications !== false;
-          if (typeof parsed.defaultReminderTime === 'string' && /^\d{2}:\d{2}$/.test(parsed.defaultReminderTime)) {
-            merged.defaultReminderTime = parsed.defaultReminderTime;
-          }
-          if (parsed.fired && typeof parsed.fired === 'object') merged.fired = parsed.fired;
-        }
-        return merged;
+        const raw = window.localStorage.getItem(SETTINGS_KEY);
+        const settings = raw === null ? Object.assign({}, DEFAULT_SETTINGS) : decodeSettings(JSON.parse(raw));
+        if (!settings) throw new Error('Invalid countdown settings');
+        settingsSnapshot = raw;
+        settingsLocked = false;
+        return settings;
       } catch (err) {
-        return Object.assign({}, DEFAULT_SETTINGS);
+        settingsLocked = true;
+        // Unknown preferences must not enable notifications or overwrite original data.
+        return Object.assign({}, DEFAULT_SETTINGS, { notifications: false });
       }
     }
 
     function saveSettings(settings) {
       try {
-        window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+        if (settingsLocked || !decodeSettings(settings) ||
+            window.localStorage.getItem(SETTINGS_KEY) !== settingsSnapshot) return false;
+        const raw = JSON.stringify(settings);
+        window.localStorage.setItem(SETTINGS_KEY, raw);
+        settingsSnapshot = raw;
+        return true;
       } catch (err) {
-        /* preferences are cosmetic; keep the in-memory value */
+        return false;
       }
     }
 
     function pruneFired(fired, now) {
-      const result = {};
+      const result = Object.create(null);
       Object.keys(fired || {}).forEach(function (key) {
         const value = Number(fired[key]);
         if (value && now.getTime() - value < 30 * MS_DAY) result[key] = value;
@@ -1297,11 +1379,14 @@ window.__ModuleLoader__.load({
     function fireReminders(items, now) {
       if (!items.length) return;
       const settings = loadSettings();
-      const fired = Object.assign({}, settings.fired || {});
+      if (settingsLocked || !settings.notifications) return;
+      const fired = Object.fromEntries(Object.entries(settings.fired || {}));
+      items = items.filter(function (item) { return !Object.prototype.hasOwnProperty.call(fired, item.key); });
+      if (!items.length) return;
       items.forEach(function (item) {
         fired[item.key] = now.getTime();
       });
-      saveSettings(Object.assign({}, settings, { fired: pruneFired(fired, now) }));
+      if (!saveSettings(Object.assign({}, settings, { fired: pruneFired(fired, now) }))) return;
       const body = items
         .map(function (item) {
           const when =
@@ -2323,22 +2408,15 @@ window.__ModuleLoader__.load({
 
     function parseBackup(text) {
       try {
-        const data = JSON.parse(text);
-        const list = Array.isArray(data) ? data : data && Array.isArray(data.events) ? data.events : null;
-        if (!list) return null;
-        const events = [];
-        list.slice(0, MAX_EVENTS).forEach(function (item) {
-          const event = sanitizeEvent(item);
-          if (event) events.push(event);
-        });
-        return events.length || list.length === 0 ? events : null;
+        return decodeEvents(JSON.parse(text));
       } catch (err) {
         return null;
       }
     }
 
     function CountdownPanel() {
-      const [state, setState] = useState(loadState);
+      const storageSnapshot = useRef({ locked: true });
+      const [state, setState] = useState(function () { return loadState(storageSnapshot.current); });
       const [settings, setSettings] = useState(loadSettings);
       const [query, setQuery] = useState('');
       const [filter, setFilter] = useState('all');
@@ -2495,9 +2573,13 @@ window.__ModuleLoader__.load({
 
       function commitEvents(events) {
         const next = { schema: SCHEMA, version: STORE_VERSION, events: events };
+        if (!saveState(next, storageSnapshot.current)) {
+          showToast('toast.storageLocked');
+          return false;
+        }
         stateRef.current = next;
         setState(next);
-        saveState(next);
+        return true;
       }
 
       function openEditor(event, presetCategory) {
@@ -2511,17 +2593,17 @@ window.__ModuleLoader__.load({
         });
         if (index >= 0) events[index] = event;
         else events.push(event);
-        commitEvents(events);
+        if (!commitEvents(events)) return;
         setModal(null);
         showToast('toast.saved');
       }
 
       function deleteEvent(event) {
-        commitEvents(
+        if (!commitEvents(
           stateRef.current.events.filter(function (item) {
             return item.id !== event.id;
           }),
-        );
+        )) return;
         setModal(null);
         showToast('toast.deleted');
       }
@@ -2537,11 +2619,18 @@ window.__ModuleLoader__.load({
 
       function updateSettings(partial) {
         const next = Object.assign({}, loadSettings(), partial);
-        saveSettings(next);
+        if (!saveSettings(next)) {
+          showToast('toast.storageLocked');
+          return;
+        }
         setSettings(next);
       }
 
       function exportBackup() {
+        if (!snapshotIsCurrent(storageSnapshot.current)) {
+          showToast('toast.storageLocked');
+          return;
+        }
         const payload = {
           schema: SCHEMA,
           version: STORE_VERSION,
@@ -2590,13 +2679,13 @@ window.__ModuleLoader__.load({
       }
 
       function confirmImport(events) {
-        commitEvents(events);
+        if (!commitEvents(events)) return;
         setModal(null);
         showToast('toast.imported', { n: events.length });
       }
 
       function clearAll() {
-        commitEvents([]);
+        if (!commitEvents([])) return;
         setModal(null);
         showToast('toast.cleared');
       }
@@ -2690,6 +2779,9 @@ window.__ModuleLoader__.load({
           h(
             'div',
             { className: 'dsh-cd-column' },
+            storageSnapshot.current.locked
+              ? h('div', { className: 'dsh-cd-preview is-bad', role: 'alert' }, T('storage.readError'))
+              : null,
             dueToday.length
               ? h(
                   'div',
