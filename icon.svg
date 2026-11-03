@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Countdown Days">
+  <defs>
+    <linearGradient id="cd-bg" x1="6" y1="4" x2="58" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6b7cff"/>
+      <stop offset="1" stop-color="#3a2f9e"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#cd-bg)"/>
+  <path d="M16 20h32a2 2 0 0 1 2 2v26a2 2 0 0 1-2 2H16a2 2 0 0 1-2-2V22a2 2 0 0 1 2-2z"
+        fill="none" stroke="#ffffff" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M14 29h36" stroke="#ffffff" stroke-width="3"/>
+  <path d="M22 16v8M42 16v8" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+  <text x="32" y="46" text-anchor="middle" fill="#ffffff" font-family="Segoe UI, Arial, sans-serif"
+        font-size="15" font-weight="700">D</text>
+</svg>
