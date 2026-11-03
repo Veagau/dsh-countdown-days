@@ -1,114 +1,79 @@
 # 倒数日 · Countdown Days
 
-DeepSeek Harness Web UI 的倒数日插件：记录生日、纪念日、重要日子、还贷日、还信用卡日等，支持**公历/农历（含闰月）**、**循环重复**、**站内与系统通知提醒**。数据保存在浏览器本地。
+[中文](#中文) · [English](#english)
 
-## 功能
+## 中文
 
-- **两种历法**：公历日期，或农历日期（年/月/日下拉，遇到该农历年的闰月会显示「闰月」勾选）。
-- **循环重复**：公历支持每年、每月、每周或不重复；农历支持每年或不重复。公历按月重复的 31 日在没有 31 日的月份取月底；按年重复的 2 月 29 日在非闰年取 2 月 28 日。农历按年重复时，闰月日期无法匹配会尝试同序号普通月；仍无对应日期则跳过该年。
-- **场景分类**：生日、纪念日、重要日子、还贷日、信用卡、自定义，带分类色与图标。
-- **提醒**：
-  - 每条记录可多选「当天 / 提前 1 / 3 / 7 / 14 / 30 天」，并设置提醒时间。
-  - 打开面板时顶部的「今天：xxx」提醒条；到点弹出站内提醒（toast）。
-  - 授权后额外发送系统通知（浏览器 Notification API），同一事件同一天同一提醒档不会重复触发。
-- **D-Day 视图**：即将到来的记录按置顶优先、日期先后排序，首条用大卡片显示，其余显示为卡片网格；已过去的不重复记录归入「已过去的日子」。
-- **整理**：置顶、按名称/备注搜索、按分类筛选。
-- **数据**：JSON 备份导出/导入（导入会覆盖当前记录，导入前有确认）；可一键清空。
-- **界面**：跟随 DSH 主题令牌，深浅色可用；窄窗口自适应；中英文文案（跟随宿主语言）。
+DeepSeek Harness Web 界面的倒数日插件，适合记录生日、纪念日和还款日。支持公历、农历（含闰月）、重复日期和提醒。数据保存在浏览器本地。
 
-## 安装
+### 安装
 
-需要支持插件 bundle 的 DeepSeek Harness Web 环境。先将本仓库下载或克隆到本机，再在 Harness 中调用 **`plugin_manager` 工具**，传入以下参数（不是终端命令）：
+需要支持插件 bundle 的 DeepSeek Harness Web 环境。下载或克隆本仓库后，在 Harness 中调用 `plugin_manager` 工具（不是终端命令）：
 
 ```json
 {"action":"install_bundle","target":"<countdown-days 目录的绝对路径>"}
 ```
 
-例如 Windows 路径 `C:\Users\你\Documents\countdown-days`：将路径填入 `target`（JSON 中每个反斜杠写成 `\\`）。也可以在 Harness 对话中告诉 agent：「请用 plugin_manager 安装这个本地插件目录：<绝对路径>」。
+Windows 路径在 JSON 中需将反斜杠写为 `\\`。也可以请 Harness agent 用该工具安装本地目录。安装影响当前 profile 的所有会话；查看返回的 `application` 和 `warnings`，按提示操作，必要时刷新页面。若以本地链接安装，请保留目录。可在插件管理界面卸载；卸载前请备份，卸载不保证清除浏览器数据。
 
-安装会影响当前 profile 的所有会话。查看返回的 `application` 和 `warnings` 并遵循提示；必要时刷新当前页面，在侧边栏打开「倒数日」。安装来源若为本地链接，该目录需持续存在。源码变更是否即时生效取决于宿主构建和安装环境，必要时重新安装。
+### 使用
 
-可通过 Harness 插件管理界面卸载此 bundle。卸载前如需保留数据，请先在插件设置中导出备份；卸载不保证清除浏览器数据。
+1. 在侧边栏打开「倒数日」，点击「新建倒数日」，填写名称、分类和日期。
+2. 公历可选择不重复、每周、每月或每年；农历可选择不重复或每年。设置提醒时间和当天或提前 1、3、7、14、30 天的提醒，保存即可。新记录默认选择当天及提前 1、3 天；设置中的默认时间只影响新记录。
+3. 可搜索名称或备注、按分类筛选，也可编辑、删除和置顶记录。
 
-包名和 `private` 设置为兼容现有本地安装而保留；本项目不通过 npm 发布。
+公历每月重复遇到不存在的日期取月底，2 月 29 日每年重复在非闰年取 2 月 28 日。农历每年重复遇到不存在的闰月时尝试同序号普通月；农历三十不存在时取二十九，仍无对应日期则跳过。日期输入范围为 1900–2100 年。农历换算依赖浏览器 ICU 中国历法，不支持该历法的环境无法换算，与其他万年历在少数日期也可能不同。
 
-## 快速使用
+### 提醒
 
-1. 在侧边栏打开「倒数日」，点击「新建倒数日」，填写名称，选择分类、公历或农历日期及重复方式。
-2. 按需选择当天或提前提醒的天数，设置提醒时间，填写备注后保存。新记录默认提醒当天及提前 1、3 天；默认时间可在设置中修改，不影响已有记录。
-3. 在面板中搜索、按分类筛选，或使用卡片上的按钮编辑、删除和置顶。置顶记录排在其他即将到来的记录之前。
-4. 如需系统通知，在「设置」中开启「桌面通知」并点击「允许通知」，同时检查浏览器和系统权限。提醒依赖页面运行，详见下方说明。
+在设置中开启「桌面通知」可启用定时提醒检查；关闭它也会关闭定时站内提醒。站内提示需要面板打开才能显示；面板中的当天提示条不受该开关影响。系统通知还需点击「允许通知」，并检查浏览器和系统权限。
 
-## 备份与恢复
+提醒依赖页面及插件持续加载。关闭页面、设备休眠或浏览器限制后台计时可能导致延迟或漏报；重新加载后只会补查当天已到时间的提醒，不补发过去提醒日。不要将其作为重要事项的唯一提醒方式。
 
-在「设置 → 数据管理」选择「导出备份」，将下载的 JSON 文件保存在安全位置。恢复时先导出当前记录，再选择「导入备份」、选择 JSON 文件并核对数量，确认后**覆盖全部当前记录**，不会合并。备份只包含记录，不包含通知开关、默认提醒时间或提醒去重历史；换浏览器后需重新检查设置和通知权限。清空数据需要再次点击确认。
+### 备份与隐私
 
-备份应定期复制到安全位置，尤其是在清除浏览器站点数据、更换浏览器或卸载前。文件包含明文个人信息；导入无效文件或超过 500 条时会拒绝整个文件。
+在「设置 → 数据管理」导出 JSON 备份。导入会在确认后**覆盖全部当前记录**，不会合并；恢复前建议先导出当前记录。备份不包含通知开关、默认提醒时间和提醒去重历史。无效、版本不受支持或超过 500 条记录的备份会被整体拒绝。
 
-## 文件结构
+记录和设置保存在当前浏览器、当前来源的 localStorage 中，未加密；插件不主动发送网络请求，也不提供云同步。同源脚本或能访问浏览器数据、设备的人可能读取这些信息。清除站点数据、更换浏览器或来源可能丢失记录，建议定期备份。备份包含明文名称、日期和备注，系统通知也可能在锁屏等位置显示名称，请注意保护。
 
-```
-countdown-days/
-├─ package.json          # 插件清单：exports / files / dsh.bundle / dsh.client
-├─ cordis.patch.yml      # 向 profile 插入插件行
-├─ index.js              # Host 侧（空实现）
-├─ client.js             # 全部 UI、数据、农历与提醒逻辑（无构建步骤）
-├─ locale/zh.json        # 插件管理器中展示的名称/描述
-├─ locale/en.json
-└─ icon.svg
-```
+若现有数据无法读取，插件会保留原始数据并停用保存和导出；请勿清除站点数据。避免同时在多个页面编辑，以免并发写入冲突。
 
-## 农历实现
+## English
 
-不内置 1900–2100 的「农历数据表」，而是使用浏览器/Node 的 ICU 中国历法：
+A countdown plugin for the DeepSeek Harness Web UI, for birthdays, anniversaries, payment dates and more. It supports Gregorian and Chinese lunar dates (including leap months), recurring events and reminders. Data stays in the browser.
 
-- 公历 → 农历：`Intl.DateTimeFormat('zh-CN-u-ca-chinese', { year: 'numeric', month: 'long', day: 'numeric' })` 的 `formatToParts()`，解析 `relatedYear / yearName / month（含「闰」前缀）/ day`；带缓存。
-- 农历 → 公历：从该农历年 1 月 1 日开始逐日扫描到次年 3 月，匹配 `relatedYear + month + day + leap`，带缓存。
-- 闰月：`lunarYearLeapMonth(year)` 检测该年闰月；按年重复时若目标年份没有同序号闰月，会回落到普通月份。
-- 输入日期的年份范围：公历和农历均为 **1900–2100**。超出范围的日期在编辑时会被拒绝。启动时检测中国历法及关键日期解析能力，不支持的环境不会进行农历换算。扫描按当地日历日推进，以避免固定 24 小时步长跨夏令时时漏查。
+### Installation
 
-数字转写（初一…三十、正月…腊月）在插件内本地完成，不依赖 locale 差异。
+You need a DeepSeek Harness Web environment that supports plugin bundles. Download or clone this repository, then call the `plugin_manager` tool in Harness (this is not a terminal command):
 
-## 数据与隐私
-
-- 仅本地存储，键名：
-  - `dsh.countdown-days.v1`：`{ schema, version, events[] }`
-  - `dsh.countdown-days.settings.v1`：`{ notifications, defaultReminderTime, fired }`
-- 记录上限 500 条；单条标题 ≤ 80 字，备注 ≤ 500 字。
-- 提醒去重键为 `事件 id | 发生日期 | 提前天数`，只保留最近 30 天。
-- 插件代码不主动发送网络请求或提供云端同步。localStorage 按浏览器及页面来源隔离，不加密；同源脚本、可访问浏览器资料或设备的人可能读取。清除站点数据、更换浏览器或来源可能导致记录丢失，卸载插件也不保证清除数据。
-- JSON 导出包含记录明文（包括名称、日期和备注），可能含敏感信息；请妥善保存，不要提交到公开仓库或随意分享。系统通知也可能在锁屏等位置显示事件名称。
-
-## 提醒说明
-
-- 浏览器通知需要用户授权：设置 → 「允许通知」。未授权本身不影响站内提醒；toast 需要面板打开才能显示，且定时检查须开启。
-- 提醒检查在插件加载后 1.8 秒执行一次，之后每 30 秒检查一次；面板打开时每分钟刷新一次日期显示。
-- 提醒依赖页面与插件持续加载及计时器运行；页面关闭、设备休眠或浏览器限制后台计时可能导致延迟或漏报，不保证准时送达。重新加载后仅在对应提醒日且已到设定时间时补查，不补发过去提醒日。
-- 关闭插件中的桌面通知开关也会关闭定时提醒检查（包括 toast）；打开面板时的当天提示条不依赖该检查。系统通知还取决于浏览器及系统权限和勿扰模式，不应作为唯一的关键事项提醒。
-
-## 贡献与验证
-
-欢迎通过 GitHub Issues 报告问题或提交 Pull Request；请描述复现步骤、运行环境和验证结果，不要上传包含个人信息的备份。修改后在仓库根目录运行（无需安装依赖或访问网络）：
-
-```sh
-npm run check
-npm test
-npm pack --dry-run --ignore-scripts
+```json
+{"action":"install_bundle","target":"<absolute path to the countdown-days directory>"}
 ```
 
-依次执行语法与发布文件检查、农历和存储回归测试、包内容预览（不会发布或生成包）。GitHub Actions 在 Node 20、22、24 上执行这些检查。自动测试不覆盖完整浏览器界面或宿主集成；提交涉及这些方面的更改时，还应在实际 DSH 环境中手动验证。农历核心被 `/* LUNAR-CORE:BEGIN */ … /* LUNAR-CORE:END */` 包裹，可被独立抽出做单元测试。
+For Windows paths, escape backslashes as `\\` in JSON. You can also ask the Harness agent to install the local directory using this tool. Installation affects all sessions in the current profile. Check the returned `application` and `warnings`, follow their guidance and refresh the page if needed. If installed as a local link, keep the directory in place. You can uninstall through the plugin manager; export a backup first, since uninstalling does not guarantee removal of browser data.
 
-尚未建立或验证 DSH 宿主版本兼容矩阵；CI 的 Node 版本不代表插件与对应版本的 DSH 或浏览器兼容。
+### Usage
 
-## 许可证
+1. Open **Countdown Days** in the sidebar, select **Add countdown**, and enter a name, category and date.
+2. Gregorian dates can repeat weekly, monthly, yearly or not at all; lunar dates can repeat yearly or not at all. Set a reminder time and choose the day itself or 1, 3, 7, 14 or 30 days before, then save. New events default to the day itself and 1 and 3 days before; the default time in Settings applies only to new events.
+3. Search by name or note, filter by category, or edit, delete and pin events.
 
-[MIT](LICENSE)（Copyright © 2026 contributors）。
+A monthly Gregorian date that does not exist falls on the last day of the month; February 29 falls on February 28 in non-leap years. For yearly lunar events, a missing leap month falls back to the corresponding regular month; a missing 30th day falls back to the 29th. If no date is found, that year is skipped. Input years are limited to 1900–2100. Lunar conversion requires the browser's ICU Chinese calendar and may differ from other calendars on a few dates.
 
-## 已知限制
+### Reminders
 
-- 提醒时间精度为分钟，依赖页面/插件处于加载状态；DSH 完全关闭时不会触发。
-- 农历按 ICU 中国历法换算，与部分万年历在极少数边界日期可能存在差异。
-- 导入为覆盖式，不合并重复记录，可能造成当前数据丢失；导入前请先导出并妥善保存当前备份。
-- 备份含无效条目、未知版本或超过上限时会整体拒绝，不会静默截断。现有记录无法解析时将阻止写入以保留原文；请保留浏览器站点数据并寻求恢复，不要直接清除存储。农历能力不可用的环境也可能无法读取含农历的记录。
-- 写入前会检查其他页面是否修改了记录，但浏览器 localStorage 不提供原子比较并交换，极短时间内的跨页面并发写入仍可能冲突。避免同时在多个页面编辑。
-- 农历已在部分 Node 时区和模拟 ICU 环境下测试；不同浏览器、ICU 版本及历史跳日仍可能存在差异。
+Turn on **Desktop notifications** in Settings to enable scheduled reminder checks; turning it off also disables scheduled in-app reminders. The panel must be open to show an in-app toast, but its today banner does not depend on this switch. System notifications also require **Allow notifications** and browser and system permission.
+
+Reminders require the page and plugin to remain loaded. Closing the page, device sleep or background timer restrictions can delay or prevent them. After a reload, only reminders due on the current day are checked; past reminder days are not replayed. Do not rely on this as the sole reminder for important matters.
+
+### Backup and privacy
+
+Use **Settings → Data → Export backup** to download a JSON backup. Importing **replaces all current events** after confirmation; it does not merge them. Export the current data before restoring. Backups do not include the notification switch, default reminder time or reminder deduplication history. Invalid or unsupported backups, or those with more than 500 events, are rejected in full.
+
+Events and settings are stored unencrypted in localStorage for the current browser and origin. The plugin does not make network requests or provide cloud sync. Same-origin scripts and people with access to the browser data or device may read them. Clearing site data or changing browser or origin can lose records, so back up regularly. Backups contain names, dates and notes in plain text; system notifications may also show names on the lock screen or elsewhere.
+
+If existing data cannot be read, the plugin preserves the original data and disables saving and export; do not clear site data. Avoid editing in multiple pages at once to reduce write conflicts.
+
+## License / 许可证
+
+[MIT](LICENSE)
