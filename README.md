@@ -2,7 +2,9 @@
 
 [中文](#中文) · [English](#english) · [界面截图 / Screenshots](docs/screenshots.md)
 
-![日期列表 / Event list](docs/screenshots/event-list.png)
+![倒数日封面 / Countdown Days cover](docs/countdown-days-cover.png)
+
+*AI 生成封面，非界面截图 / AI-generated cover, not a UI screenshot.*
 
 ## 中文
 
