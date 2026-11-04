@@ -1,6 +1,8 @@
 # 倒数日 · Countdown Days
 
-[中文](#中文) · [English](#english)
+[中文](#中文) · [English](#english) · [界面截图 / Screenshots](docs/screenshots.md)
+
+![日期列表 / Event list](docs/screenshots/event-list.png)
 
 ## 中文
 
